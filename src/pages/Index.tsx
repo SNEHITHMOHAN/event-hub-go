@@ -1,7 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
+import { Navigate } from 'react-router-dom';
 import { useToast } from "@/hooks/use-toast";
-import { PlusCircle, Share } from 'lucide-react';
+import { PlusCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Navbar from '@/components/Navbar';
 import EventList from '@/components/EventList';
@@ -9,64 +10,143 @@ import EventDetails from '@/components/EventDetails';
 import CreateEventModal from '@/components/CreateEventModal';
 import UserProfile from '@/components/UserProfile';
 import { Event, TabType } from '@/types';
-import { mockEvents, getEventsWithDetails, getEventsForUser, currentUser } from '@/data/events';
-import { toggleAttendance } from '@/utils/eventUtils';
+import { useAuth } from '@/contexts/AuthContext';
+import { 
+  fetchPublicEvents, 
+  fetchUserEvents, 
+  fetchAttendingEvents, 
+  toggleEventAttendance, 
+  createEvent 
+} from '@/services/eventService';
 
 const Index = () => {
   const { toast } = useToast();
+  const { user, isAuthenticated, isLoading } = useAuth();
   const [activeTab, setActiveTab] = useState<TabType>(TabType.EXPLORE);
   const [events, setEvents] = useState<Event[]>([]);
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isLoadingEvents, setIsLoadingEvents] = useState(true);
   
-  // Load events on initial render
+  // Redirect to auth page if not authenticated
+  if (!isLoading && !isAuthenticated) {
+    return <Navigate to="/auth" replace />;
+  }
+  
+  // Load events based on active tab
   useEffect(() => {
-    if (activeTab === TabType.EXPLORE) {
-      const allEvents = getEventsWithDetails();
-      setEvents(allEvents);
-    } else if (activeTab === TabType.MY_EVENTS) {
-      const userEvents = getEventsForUser(currentUser.id);
-      setEvents(userEvents);
+    const loadEvents = async () => {
+      setIsLoadingEvents(true);
+      try {
+        let loadedEvents: Event[] = [];
+        
+        if (activeTab === TabType.EXPLORE) {
+          loadedEvents = await fetchPublicEvents();
+        } else if (activeTab === TabType.MY_EVENTS && user) {
+          loadedEvents = await fetchUserEvents(user.id);
+        } else if (activeTab === TabType.CALENDAR && user) {
+          // For now, Calendar tab shows events user is attending
+          loadedEvents = await fetchAttendingEvents(user.id);
+        }
+        
+        setEvents(loadedEvents);
+      } catch (error) {
+        console.error("Error loading events:", error);
+        toast({
+          title: "Error",
+          description: "Failed to load events. Please try again.",
+          variant: "destructive"
+        });
+      } finally {
+        setIsLoadingEvents(false);
+      }
+    };
+    
+    if (isAuthenticated) {
+      loadEvents();
     }
-  }, [activeTab]);
+  }, [activeTab, isAuthenticated, user]);
   
   const handleEventClick = (event: Event) => {
     setSelectedEvent(event);
   };
   
-  const handleRsvp = (event: Event) => {
-    const updatedEvent = toggleAttendance(event);
+  const handleRsvp = async (event: Event) => {
+    if (!user) return;
     
-    // Update events state with the new attendance info
-    setEvents(events.map(e => e.id === event.id ? updatedEvent : e));
-    
-    // If we're viewing the event details, update the selected event too
-    if (selectedEvent && selectedEvent.id === event.id) {
-      setSelectedEvent(updatedEvent);
+    try {
+      const success = await toggleEventAttendance(event.id, user.id);
+      
+      if (success) {
+        // Update local state to reflect the change
+        const isAttending = !event.attendees.includes(user.id);
+        const updatedEvent = {
+          ...event,
+          attendees: isAttending 
+            ? [...event.attendees, user.id]
+            : event.attendees.filter(id => id !== user.id)
+        };
+        
+        // Update events list
+        setEvents(events.map(e => e.id === event.id ? updatedEvent : e));
+        
+        // Update selected event if needed
+        if (selectedEvent && selectedEvent.id === event.id) {
+          setSelectedEvent(updatedEvent);
+        }
+        
+        // Show toast notification
+        toast({
+          title: isAttending ? "You're going!" : "RSVP cancelled",
+          description: isAttending 
+            ? `You've successfully RSVP'd to ${event.title}` 
+            : `You've cancelled your RSVP to ${event.title}`,
+        });
+      } else {
+        throw new Error("Failed to update attendance");
+      }
+    } catch (error) {
+      console.error("Error updating RSVP:", error);
+      toast({
+        title: "Error",
+        description: "Failed to update your RSVP. Please try again.",
+        variant: "destructive"
+      });
     }
-    
-    // Show a toast notification
-    const isAttending = updatedEvent.attendees.includes(currentUser.id);
-    toast({
-      title: isAttending ? "You're going!" : "RSVP cancelled",
-      description: isAttending ? `You've successfully RSVP'd to ${event.title}` : `You've cancelled your RSVP to ${event.title}`,
-    });
   };
   
-  const handleCreateEvent = (newEventData: Omit<Event, 'id'>) => {
-    const newId = (mockEvents.length + 1).toString();
-    const newEvent: Event = {
-      id: newId,
-      ...newEventData,
-    };
+  const handleCreateEvent = async (newEventData: Omit<Event, 'id' | 'attendees'>) => {
+    if (!user) return;
     
-    // Add to events
-    setEvents([newEvent, ...events]);
-    
-    toast({
-      title: "Event created!",
-      description: `${newEvent.title} has been created successfully.`,
-    });
+    try {
+      const newEvent = await createEvent({
+        ...newEventData,
+        organizerId: user.id,
+      });
+      
+      if (newEvent) {
+        // Add to events if we're on the MY_EVENTS tab
+        if (activeTab === TabType.MY_EVENTS) {
+          setEvents([newEvent, ...events]);
+        }
+        
+        toast({
+          title: "Event created!",
+          description: `${newEvent.title} has been created successfully.`,
+        });
+        
+        setIsCreateModalOpen(false);
+      } else {
+        throw new Error("Failed to create event");
+      }
+    } catch (error) {
+      console.error("Error creating event:", error);
+      toast({
+        title: "Error",
+        description: "Failed to create your event. Please try again.",
+        variant: "destructive"
+      });
+    }
   };
   
   const handleShare = () => {
@@ -78,6 +158,15 @@ const Index = () => {
       });
     }
   };
+  
+  // Show loading spinner while authentication is checking
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
   
   // Render event details view if an event is selected
   if (selectedEvent) {
@@ -109,31 +198,49 @@ const Index = () => {
       </header>
       
       <main className="container mx-auto px-4 pt-4">
-        {activeTab === TabType.EXPLORE && (
-          <EventList 
-            events={events} 
-            onEventClick={handleEventClick}
-            onRsvp={handleRsvp}
-            title="Discover Events"
-          />
-        )}
-        
-        {activeTab === TabType.MY_EVENTS && (
-          <EventList 
-            events={events} 
-            onEventClick={handleEventClick}
-            onRsvp={handleRsvp}
-            title="My Events"
-          />
-        )}
-        
-        {activeTab === TabType.PROFILE && (
-          <UserProfile 
-            events={events}
-            onCreateEvent={() => setIsCreateModalOpen(true)}
-            onEventClick={handleEventClick}
-            onRsvp={handleRsvp}
-          />
+        {isLoadingEvents ? (
+          <div className="flex items-center justify-center h-64">
+            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary"></div>
+          </div>
+        ) : (
+          <>
+            {activeTab === TabType.EXPLORE && (
+              <EventList 
+                events={events} 
+                onEventClick={handleEventClick}
+                onRsvp={handleRsvp}
+                title="Discover Events"
+              />
+            )}
+            
+            {activeTab === TabType.MY_EVENTS && (
+              <EventList 
+                events={events} 
+                onEventClick={handleEventClick}
+                onRsvp={handleRsvp}
+                title="My Events"
+              />
+            )}
+            
+            {activeTab === TabType.CALENDAR && (
+              <EventList 
+                events={events} 
+                onEventClick={handleEventClick}
+                onRsvp={handleRsvp}
+                title="Events I'm Attending"
+              />
+            )}
+            
+            {activeTab === TabType.PROFILE && user && (
+              <UserProfile 
+                user={user}
+                events={events}
+                onCreateEvent={() => setIsCreateModalOpen(true)}
+                onEventClick={handleEventClick}
+                onRsvp={handleRsvp}
+              />
+            )}
+          </>
         )}
       </main>
       
