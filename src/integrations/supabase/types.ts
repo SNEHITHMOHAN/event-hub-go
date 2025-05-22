@@ -9,7 +9,107 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      attendees: {
+        Row: {
+          created_at: string
+          event_id: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          event_id: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          event_id?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attendees_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      events: {
+        Row: {
+          capacity: number
+          created_at: string
+          date: string
+          description: string
+          id: string
+          image_url: string | null
+          is_public: boolean
+          location: string
+          organizer_id: string
+          tags: string[]
+          time: string
+          title: string
+        }
+        Insert: {
+          capacity: number
+          created_at?: string
+          date: string
+          description: string
+          id?: string
+          image_url?: string | null
+          is_public?: boolean
+          location: string
+          organizer_id: string
+          tags?: string[]
+          time: string
+          title: string
+        }
+        Update: {
+          capacity?: number
+          created_at?: string
+          date?: string
+          description?: string
+          id?: string
+          image_url?: string | null
+          is_public?: boolean
+          location?: string
+          organizer_id?: string
+          tags?: string[]
+          time?: string
+          title?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          avatar: string | null
+          created_at: string
+          email: string
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          avatar?: string | null
+          created_at?: string
+          email: string
+          id: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          avatar?: string | null
+          created_at?: string
+          email?: string
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
