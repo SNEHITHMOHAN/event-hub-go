@@ -1,6 +1,6 @@
 
-import React, { useState } from 'react';
-import { Navigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Navigate, useNavigate } from 'react-router-dom';
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,13 +13,22 @@ import { useAuth } from "@/contexts/AuthContext";
 const Auth = () => {
   const { toast } = useToast();
   const { isAuthenticated, isLoading } = useAuth();
+  const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState('');
+  const [shouldRedirect, setShouldRedirect] = useState(false);
+  
+  useEffect(() => {
+    // Handle redirect in useEffect to avoid conditional hook rendering issues
+    if (!isLoading && isAuthenticated) {
+      setShouldRedirect(true);
+    }
+  }, [isLoading, isAuthenticated]);
 
-  // If already authenticated and not loading, redirect to home
-  if (!isLoading && isAuthenticated) {
+  // Redirect using conditional rendering after all hooks have been called
+  if (shouldRedirect) {
     return <Navigate to="/" replace />;
   }
 
@@ -124,9 +133,9 @@ const Auth = () => {
                 <Button 
                   type="submit" 
                   className="w-full"
-                  disabled={isSubmitting}
+                  disabled={isSubmitting === 'true'}
                 >
-                  {isSubmitting ? "Signing in..." : "Sign In"}
+                  {isSubmitting === 'true' ? "Signing in..." : "Sign In"}
                 </Button>
               </CardFooter>
             </form>
@@ -173,9 +182,9 @@ const Auth = () => {
                 <Button 
                   type="submit" 
                   className="w-full"
-                  disabled={isSubmitting}
+                  disabled={isSubmitting === 'true'}
                 >
-                  {isSubmitting ? "Signing up..." : "Sign Up"}
+                  {isSubmitting === 'true' ? "Signing up..." : "Sign Up"}
                 </Button>
               </CardFooter>
             </form>
