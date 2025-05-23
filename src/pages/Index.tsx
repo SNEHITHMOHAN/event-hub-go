@@ -28,14 +28,11 @@ const Index = () => {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isLoadingEvents, setIsLoadingEvents] = useState(true);
   
-  // Redirect to auth page if not authenticated
-  if (!isLoading && !isAuthenticated) {
-    return <Navigate to="/auth" replace />;
-  }
-  
   // Load events based on active tab
   useEffect(() => {
     const loadEvents = async () => {
+      if (!isAuthenticated) return;
+      
       setIsLoadingEvents(true);
       try {
         let loadedEvents: Event[] = [];
@@ -62,10 +59,8 @@ const Index = () => {
       }
     };
     
-    if (isAuthenticated) {
-      loadEvents();
-    }
-  }, [activeTab, isAuthenticated, user]);
+    loadEvents();
+  }, [activeTab, isAuthenticated, user, toast]);
   
   const handleEventClick = (event: Event) => {
     setSelectedEvent(event);
@@ -166,6 +161,11 @@ const Index = () => {
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
       </div>
     );
+  }
+  
+  // Redirect to auth page if not authenticated
+  if (!isAuthenticated) {
+    return <Navigate to="/auth" replace />;
   }
   
   // Render event details view if an event is selected
