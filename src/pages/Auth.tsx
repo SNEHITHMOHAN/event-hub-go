@@ -17,7 +17,7 @@ const Auth = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false); // Changed from string to boolean
   const [shouldRedirect, setShouldRedirect] = useState(false);
   
   useEffect(() => {
@@ -43,9 +43,9 @@ const Auth = () => {
       return;
     }
 
-    setIsSubmitting(true);
+    setIsSubmitting(true); // Now correctly assigns boolean
     const { success, error } = await signIn(email, password);
-    setIsSubmitting(false);
+    setIsSubmitting(false); // Now correctly assigns boolean
 
     if (success) {
       toast({
@@ -72,9 +72,9 @@ const Auth = () => {
       return;
     }
 
-    setIsSubmitting(true);
+    setIsSubmitting(true); // Now correctly assigns boolean
     const { success, error } = await signUp(email, password, name);
-    setIsSubmitting(false);
+    setIsSubmitting(false); // Now correctly assigns boolean
 
     if (success) {
       toast({
@@ -133,9 +133,9 @@ const Auth = () => {
                 <Button 
                   type="submit" 
                   className="w-full"
-                  disabled={isSubmitting === 'true'}
+                  disabled={isSubmitting}
                 >
-                  {isSubmitting === 'true' ? "Signing in..." : "Sign In"}
+                  {isSubmitting ? "Signing in..." : "Sign In"}
                 </Button>
               </CardFooter>
             </form>
@@ -182,9 +182,9 @@ const Auth = () => {
                 <Button 
                   type="submit" 
                   className="w-full"
-                  disabled={isSubmitting === 'true'}
+                  disabled={isSubmitting}
                 >
-                  {isSubmitting === 'true' ? "Signing up..." : "Sign Up"}
+                  {isSubmitting ? "Signing up..." : "Sign Up"}
                 </Button>
               </CardFooter>
             </form>
