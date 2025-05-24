@@ -13,12 +13,12 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Event } from '@/types';
-import { currentUser } from '@/data/events';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface CreateEventModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onCreateEvent: (event: Omit<Event, 'id'>) => void;
+  onCreateEvent: (event: Omit<Event, 'id' | 'attendees'>) => void;
 }
 
 const CreateEventModal: React.FC<CreateEventModalProps> = ({ 
@@ -26,6 +26,7 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({
   onClose, 
   onCreateEvent 
 }) => {
+  const { user } = useAuth();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [date, setDate] = useState('');
@@ -38,23 +39,26 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    const newEvent: Omit<Event, 'id'> = {
+    if (!user) {
+      console.error('No authenticated user found');
+      return;
+    }
+    
+    const newEvent: Omit<Event, 'id' | 'attendees'> = {
       title,
       description,
       date,
       time,
       location,
       imageUrl: imageUrl || undefined,
-      organizerId: currentUser.id,
-      attendees: [currentUser.id], // Creator automatically attends
+      organizerId: user.id,
       capacity,
-      tags: tags.split(',').map(tag => tag.trim()),
+      tags: tags.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0),
       isPublic: true
     };
     
     onCreateEvent(newEvent);
     resetForm();
-    onClose();
   };
   
   const resetForm = () => {
@@ -68,8 +72,13 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({
     setTags('');
   };
 
+  const handleClose = () => {
+    resetForm();
+    onClose();
+  };
+
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Create New Event</DialogTitle>
@@ -171,10 +180,12 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({
           </div>
           
           <DialogFooter className="pt-4">
-            <Button type="button" variant="outline" onClick={onClose}>
+            <Button type="button" variant="outline" onClick={handleClose}>
               Cancel
             </Button>
-            <Button type="submit">Create Event</Button>
+            <Button type="submit" disabled={!user}>
+              Create Event
+            </Button>
           </DialogFooter>
         </form>
       </DialogContent>
