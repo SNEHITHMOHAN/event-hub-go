@@ -5,6 +5,7 @@ import { Event, SupabaseEvent, SupabaseAttendee, User } from "@/types";
 // Fetch all public events
 export const fetchPublicEvents = async (): Promise<Event[]> => {
   try {
+    console.log('Fetching public events...');
     const { data: events, error } = await supabase
       .from("events")
       .select("*")
@@ -13,6 +14,11 @@ export const fetchPublicEvents = async (): Promise<Event[]> => {
     
     if (error) {
       console.error("Error fetching events:", error);
+      return [];
+    }
+
+    if (!events || events.length === 0) {
+      console.log('No events found');
       return [];
     }
 
@@ -48,6 +54,7 @@ export const fetchPublicEvents = async (): Promise<Event[]> => {
 // Fetch events organized by the current user
 export const fetchUserEvents = async (userId: string): Promise<Event[]> => {
   try {
+    console.log('Fetching user events for:', userId);
     // Fetch events organized by the user
     const { data: events, error } = await supabase
       .from("events")
@@ -60,12 +67,17 @@ export const fetchUserEvents = async (userId: string): Promise<Event[]> => {
       return [];
     }
 
+    if (!events || events.length === 0) {
+      console.log('No user events found');
+      return [];
+    }
+
     // Get organizer details
     const { data: organizer } = await supabase
       .from("profiles")
       .select("*")
       .eq("id", userId)
-      .single();
+      .maybeSingle();
     
     // Get attendees for these events
     const eventIds = events.map(event => event.id);
@@ -90,6 +102,7 @@ export const fetchUserEvents = async (userId: string): Promise<Event[]> => {
 // Fetch events the user is attending but not organizing
 export const fetchAttendingEvents = async (userId: string): Promise<Event[]> => {
   try {
+    console.log('Fetching attending events for:', userId);
     // Find events the user is attending
     const { data: userAttendees, error: attendeesError } = await supabase
       .from("attendees")
@@ -97,6 +110,7 @@ export const fetchAttendingEvents = async (userId: string): Promise<Event[]> => 
       .eq("user_id", userId);
     
     if (attendeesError || !userAttendees || userAttendees.length === 0) {
+      console.log('No attending events found');
       return [];
     }
 
@@ -146,6 +160,7 @@ export const fetchAttendingEvents = async (userId: string): Promise<Event[]> => 
 // Toggle user attendance for an event
 export const toggleEventAttendance = async (eventId: string, userId: string): Promise<boolean> => {
   try {
+    console.log('Toggling attendance for event:', eventId, 'user:', userId);
     // Check if user is already attending
     const { data: existing, error: checkError } = await supabase
       .from("attendees")
@@ -172,6 +187,7 @@ export const toggleEventAttendance = async (eventId: string, userId: string): Pr
         return false;
       }
       
+      console.log('Successfully removed attendance');
       return true;
     } else {
       // Add attendance
@@ -184,6 +200,7 @@ export const toggleEventAttendance = async (eventId: string, userId: string): Pr
         return false;
       }
       
+      console.log('Successfully added attendance');
       return true;
     }
   } catch (error) {
@@ -195,6 +212,31 @@ export const toggleEventAttendance = async (eventId: string, userId: string): Pr
 // Create a new event
 export const createEvent = async (eventData: Omit<Event, "id" | "attendees" | "organizer">): Promise<Event | null> => {
   try {
+    console.log('Creating event with data:', eventData);
+    
+    // Validate required fields
+    if (!eventData.title || !eventData.description || !eventData.date || !eventData.time || !eventData.location || !eventData.organizerId) {
+      console.error('Missing required fields for event creation');
+      throw new Error('All required fields must be filled');
+    }
+
+    // Get the organizer profile first to ensure it exists
+    const { data: organizer, error: organizerError } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", eventData.organizerId)
+      .maybeSingle();
+    
+    if (organizerError) {
+      console.error("Error fetching organizer profile:", organizerError);
+      throw new Error('Failed to verify organizer profile');
+    }
+
+    if (!organizer) {
+      console.error("Organizer profile not found");
+      throw new Error('Organizer profile not found. Please try signing out and back in.');
+    }
+
     // Map to Supabase format
     const supabaseEvent = {
       title: eventData.title,
@@ -209,6 +251,8 @@ export const createEvent = async (eventData: Omit<Event, "id" | "attendees" | "o
       is_public: eventData.isPublic
     };
     
+    console.log('Inserting event into database:', supabaseEvent);
+    
     // Insert the event
     const { data, error } = await supabase
       .from("events")
@@ -216,29 +260,30 @@ export const createEvent = async (eventData: Omit<Event, "id" | "attendees" | "o
       .select()
       .single();
     
-    if (error || !data) {
+    if (error) {
       console.error("Error creating event:", error);
-      return null;
+      throw new Error(`Failed to create event: ${error.message}`);
     }
     
-    // Get organizer details
-    const { data: organizer } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", data.organizer_id)
-      .single();
+    if (!data) {
+      console.error("No data returned from event creation");
+      throw new Error('Event creation failed - no data returned');
+    }
+    
+    console.log('Event created successfully:', data);
     
     // Return the created event
     return mapSupabaseEventToEvent(data, [], organizer);
   } catch (error) {
     console.error("Error in createEvent:", error);
-    return null;
+    throw error; // Re-throw to allow proper error handling in the component
   }
 };
 
 // Get event by ID with full details
 export const getEventById = async (eventId: string): Promise<Event | null> => {
   try {
+    console.log('Fetching event by ID:', eventId);
     const { data: event, error } = await supabase
       .from("events")
       .select("*")
@@ -255,7 +300,7 @@ export const getEventById = async (eventId: string): Promise<Event | null> => {
       .from("profiles")
       .select("*")
       .eq("id", event.organizer_id)
-      .single();
+      .maybeSingle();
     
     // Get attendees
     const { data: attendees } = await supabase

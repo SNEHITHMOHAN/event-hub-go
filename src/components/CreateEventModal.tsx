@@ -14,6 +14,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Event } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from "@/hooks/use-toast";
 
 interface CreateEventModalProps {
   isOpen: boolean;
@@ -27,6 +28,7 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({
   onCreateEvent 
 }) => {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [date, setDate] = useState('');
@@ -35,30 +37,120 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({
   const [imageUrl, setImageUrl] = useState('');
   const [capacity, setCapacity] = useState(50);
   const [tags, setTags] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   
-  const handleSubmit = (e: React.FormEvent) => {
+  const validateForm = () => {
+    if (!title.trim()) {
+      toast({
+        title: "Validation Error",
+        description: "Event title is required",
+        variant: "destructive"
+      });
+      return false;
+    }
+    
+    if (!description.trim()) {
+      toast({
+        title: "Validation Error", 
+        description: "Event description is required",
+        variant: "destructive"
+      });
+      return false;
+    }
+    
+    if (!date) {
+      toast({
+        title: "Validation Error",
+        description: "Event date is required",
+        variant: "destructive"
+      });
+      return false;
+    }
+    
+    if (!time) {
+      toast({
+        title: "Validation Error",
+        description: "Event time is required", 
+        variant: "destructive"
+      });
+      return false;
+    }
+    
+    if (!location.trim()) {
+      toast({
+        title: "Validation Error",
+        description: "Event location is required",
+        variant: "destructive"
+      });
+      return false;
+    }
+    
+    if (capacity < 1) {
+      toast({
+        title: "Validation Error",
+        description: "Event capacity must be at least 1",
+        variant: "destructive"
+      });
+      return false;
+    }
+    
+    return true;
+  };
+  
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!user) {
-      console.error('No authenticated user found');
+      toast({
+        title: "Authentication Error",
+        description: "You must be logged in to create an event",
+        variant: "destructive"
+      });
       return;
     }
     
-    const newEvent: Omit<Event, 'id' | 'attendees'> = {
-      title,
-      description,
-      date,
-      time,
-      location,
-      imageUrl: imageUrl || undefined,
-      organizerId: user.id,
-      capacity,
-      tags: tags.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0),
-      isPublic: true
-    };
+    if (!validateForm()) {
+      return;
+    }
     
-    onCreateEvent(newEvent);
-    resetForm();
+    setIsSubmitting(true);
+    
+    try {
+      console.log('Submitting event creation form...');
+      
+      const newEvent: Omit<Event, 'id' | 'attendees'> = {
+        title: title.trim(),
+        description: description.trim(),
+        date,
+        time,
+        location: location.trim(),
+        imageUrl: imageUrl.trim() || undefined,
+        organizerId: user.id,
+        capacity,
+        tags: tags.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0),
+        isPublic: true
+      };
+      
+      console.log('Event data prepared:', newEvent);
+      
+      await onCreateEvent(newEvent);
+      resetForm();
+      
+      toast({
+        title: "Success!",
+        description: "Your event has been created successfully",
+      });
+      
+    } catch (error) {
+      console.error('Error in form submission:', error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to create event. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
   
   const resetForm = () => {
@@ -73,8 +165,10 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({
   };
 
   const handleClose = () => {
-    resetForm();
-    onClose();
+    if (!isSubmitting) {
+      resetForm();
+      onClose();
+    }
   };
 
   return (
@@ -96,6 +190,7 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Enter event title"
               required
+              disabled={isSubmitting}
             />
           </div>
           
@@ -108,6 +203,7 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({
               placeholder="Describe your event"
               rows={3}
               required
+              disabled={isSubmitting}
             />
           </div>
           
@@ -120,6 +216,7 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
                 required
+                disabled={isSubmitting}
               />
             </div>
             
@@ -131,6 +228,7 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({
                 value={time}
                 onChange={(e) => setTime(e.target.value)}
                 required
+                disabled={isSubmitting}
               />
             </div>
           </div>
@@ -143,6 +241,7 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({
               onChange={(e) => setLocation(e.target.value)}
               placeholder="Event location"
               required
+              disabled={isSubmitting}
             />
           </div>
           
@@ -154,6 +253,7 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({
               value={imageUrl}
               onChange={(e) => setImageUrl(e.target.value)}
               placeholder="Add an image URL (optional)"
+              disabled={isSubmitting}
             />
           </div>
           
@@ -166,6 +266,7 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({
               value={capacity}
               onChange={(e) => setCapacity(Number(e.target.value))}
               required
+              disabled={isSubmitting}
             />
           </div>
           
@@ -176,15 +277,24 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({
               value={tags}
               onChange={(e) => setTags(e.target.value)}
               placeholder="e.g. Music, Outdoors, Tech"
+              disabled={isSubmitting}
             />
           </div>
           
           <DialogFooter className="pt-4">
-            <Button type="button" variant="outline" onClick={handleClose}>
+            <Button 
+              type="button" 
+              variant="outline" 
+              onClick={handleClose}
+              disabled={isSubmitting}
+            >
               Cancel
             </Button>
-            <Button type="submit" disabled={!user}>
-              Create Event
+            <Button 
+              type="submit" 
+              disabled={!user || isSubmitting}
+            >
+              {isSubmitting ? "Creating..." : "Create Event"}
             </Button>
           </DialogFooter>
         </form>
