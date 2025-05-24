@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useToast } from "@/hooks/use-toast";
@@ -29,36 +28,39 @@ const Index = () => {
   const [isLoadingEvents, setIsLoadingEvents] = useState(true);
   
   // Load events based on active tab
-  useEffect(() => {
-    const loadEvents = async () => {
-      if (!isAuthenticated) return;
-      
-      setIsLoadingEvents(true);
-      try {
-        let loadedEvents: Event[] = [];
-        
-        if (activeTab === TabType.EXPLORE) {
-          loadedEvents = await fetchPublicEvents();
-        } else if (activeTab === TabType.MY_EVENTS && user) {
-          loadedEvents = await fetchUserEvents(user.id);
-        } else if (activeTab === TabType.CALENDAR && user) {
-          // For now, Calendar tab shows events user is attending
-          loadedEvents = await fetchAttendingEvents(user.id);
-        }
-        
-        setEvents(loadedEvents);
-      } catch (error) {
-        console.error("Error loading events:", error);
-        toast({
-          title: "Error",
-          description: "Failed to load events. Please try again.",
-          variant: "destructive"
-        });
-      } finally {
-        setIsLoadingEvents(false);
-      }
-    };
+  const loadEvents = async () => {
+    if (!isAuthenticated) return;
     
+    setIsLoadingEvents(true);
+    try {
+      let loadedEvents: Event[] = [];
+      
+      console.log('Loading events for tab:', activeTab);
+      
+      if (activeTab === TabType.EXPLORE) {
+        loadedEvents = await fetchPublicEvents();
+      } else if (activeTab === TabType.MY_EVENTS && user) {
+        loadedEvents = await fetchUserEvents(user.id);
+      } else if (activeTab === TabType.CALENDAR && user) {
+        // For now, Calendar tab shows events user is attending
+        loadedEvents = await fetchAttendingEvents(user.id);
+      }
+      
+      console.log('Loaded events:', loadedEvents.length);
+      setEvents(loadedEvents);
+    } catch (error) {
+      console.error("Error loading events:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load events. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoadingEvents(false);
+    }
+  };
+  
+  useEffect(() => {
     loadEvents();
   }, [activeTab, isAuthenticated, user, toast]);
   
@@ -114,16 +116,17 @@ const Index = () => {
     if (!user) return;
     
     try {
+      console.log('Creating new event...');
       const newEvent = await createEvent({
         ...newEventData,
         organizerId: user.id,
       });
       
       if (newEvent) {
-        // Add to events if we're on the MY_EVENTS tab
-        if (activeTab === TabType.MY_EVENTS) {
-          setEvents([newEvent, ...events]);
-        }
+        console.log('Event created successfully, refreshing list...');
+        
+        // Refresh the event list to show the new event
+        await loadEvents();
         
         toast({
           title: "Event created!",

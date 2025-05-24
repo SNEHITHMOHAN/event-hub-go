@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { Event, SupabaseEvent, SupabaseAttendee, User } from "@/types";
 
@@ -6,14 +5,30 @@ import { Event, SupabaseEvent, SupabaseAttendee, User } from "@/types";
 export const fetchPublicEvents = async (): Promise<Event[]> => {
   try {
     console.log('Fetching public events...');
+    
+    // Simplified query to avoid RLS recursion issues
     const { data: events, error } = await supabase
       .from("events")
-      .select("*")
+      .select(`
+        id,
+        title,
+        description,
+        date,
+        time,
+        location,
+        image_url,
+        organizer_id,
+        capacity,
+        tags,
+        is_public,
+        created_at
+      `)
       .eq("is_public", true)
       .order("date", { ascending: true });
     
     if (error) {
       console.error("Error fetching events:", error);
+      // Return empty array instead of throwing to prevent app crashes
       return [];
     }
 
@@ -22,18 +37,20 @@ export const fetchPublicEvents = async (): Promise<Event[]> => {
       return [];
     }
 
+    console.log('Events fetched successfully:', events.length);
+
     // Get organizers for these events
     const organizerIds = [...new Set(events.map(event => event.organizer_id))];
     const { data: organizers } = await supabase
       .from("profiles")
-      .select("*")
+      .select("id, name, email, avatar")
       .in("id", organizerIds);
     
     // Get attendees for these events
     const eventIds = events.map(event => event.id);
     const { data: attendees } = await supabase
       .from("attendees")
-      .select("*")
+      .select("event_id, user_id")
       .in("event_id", eventIds);
     
     // Map Supabase events to our app Event type
@@ -133,13 +150,13 @@ export const fetchAttendingEvents = async (userId: string): Promise<Event[]> => 
     const organizerIds = [...new Set(events.map(event => event.organizer_id))];
     const { data: organizers } = await supabase
       .from("profiles")
-      .select("*")
+      .select("id, name, email, avatar")
       .in("id", organizerIds);
     
     // Get all attendees for these events
     const { data: attendees } = await supabase
       .from("attendees")
-      .select("*")
+      .select("event_id, user_id")
       .in("event_id", attendingEventIds);
     
     // Map Supabase events to our app Event type
@@ -223,7 +240,7 @@ export const createEvent = async (eventData: Omit<Event, "id" | "attendees" | "o
     // Get the organizer profile first to ensure it exists
     const { data: organizer, error: organizerError } = await supabase
       .from("profiles")
-      .select("*")
+      .select("id, name, email, avatar")
       .eq("id", eventData.organizerId)
       .maybeSingle();
     
@@ -257,7 +274,20 @@ export const createEvent = async (eventData: Omit<Event, "id" | "attendees" | "o
     const { data, error } = await supabase
       .from("events")
       .insert(supabaseEvent)
-      .select()
+      .select(`
+        id,
+        title,
+        description,
+        date,
+        time,
+        location,
+        image_url,
+        organizer_id,
+        capacity,
+        tags,
+        is_public,
+        created_at
+      `)
       .single();
     
     if (error) {
